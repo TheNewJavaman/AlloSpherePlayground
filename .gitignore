@@ -1,0 +1,10 @@
+﻿**Binaries/
+**DerivedDataCache/
+**Intermediate/
+**Saved/
+**.sln
+**.user
+
+/.idea/
+/.vs/
+/.vscode/
