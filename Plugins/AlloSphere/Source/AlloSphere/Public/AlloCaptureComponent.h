@@ -13,5 +13,5 @@ class UAlloCaptureComponent : public USceneCaptureComponent2D
 	GENERATED_BODY()
 
 public:
-	
+	int Id;
 };

@@ -2,6 +2,7 @@
 
 #include "AlloSubsystem.h"
 
+#include "AlloCaptureComponent.h"
 #include "SceneViewExtension.h"
 
 void UAlloSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -14,5 +15,16 @@ void UAlloSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		ViewportClient->bDisableWorldRendering = true;
 	}
 
-	AlloSceneViewExtension = FSceneViewExtensions::NewExtension<FAlloSceneViewExtension>();
+	SceneViewExtension = FSceneViewExtensions::NewExtension<FAlloSceneViewExtension>(MakeWeakObjectPtr(this));
+}
+
+void UAlloSubsystem::Tick(float DeltaTime)
+{
+	// Todo: Despawn capture components
+	// Todo: Spawn capture components; set id, size, pose
+
+	for (const TWeakObjectPtr<UAlloCaptureComponent>& CaptureComponent : CaptureComponents)
+	{
+		CaptureComponent->CaptureSceneDeferred();
+	}
 }
