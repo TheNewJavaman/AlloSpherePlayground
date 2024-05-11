@@ -16,9 +16,14 @@
 	"Installed": false,
 	"Modules": [
 		{
+			"Name": "AlloSphereShaders",
+			"Type": "ClientOnly",
+			"LoadingPhase": "PostConfigInit"
+		},
+		{
 			"Name": "AlloSphere",
 			"Type": "ClientOnly",
-			"LoadingPhase": "Default"
+			"LoadingPhase": "PostConfigInit"
 		}
 	]
 }

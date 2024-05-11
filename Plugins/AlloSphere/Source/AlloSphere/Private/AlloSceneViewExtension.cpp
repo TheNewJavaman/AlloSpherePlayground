@@ -2,7 +2,8 @@
 
 #include "AlloSceneViewExtension.h"
 
-#include "AlloCaptureComponent.h"
+#include "AlloShaders.h"
+#include "AlloSubsystem.h"
 #include "ScreenPass.h"
 #include "PostProcess/PostProcessMaterialInputs.h"
 
@@ -45,37 +46,30 @@ FScreenPassTexture FAlloSceneViewExtension::PostProcessPassAfterFxaa_RenderThrea
 	const FSceneView& View,
 	const FPostProcessMaterialInputs& Inputs)
 {
-	FScreenPassTexture SceneColor = Inputs.GetInput(EPostProcessMaterialInput::SceneColor);
+	const FScreenPassTexture& SceneColor = FScreenPassTexture::CopyFromSlice(
+		GraphBuilder, Inputs.GetInput(EPostProcessMaterialInput::SceneColor));
 
-	const UAlloCaptureComponent* CaptureComponent = Cast<UAlloCaptureComponent>(View.ViewActor);
-	if (!CaptureComponent)
-	{
-		return SceneColor;
-	}
+	const FRDGTextureDesc OutColorDesc = FRDGTextureDesc::Create2D(
+		SceneColor.ViewRect.Size(),
+		PF_FloatRGBA,
+		FClearValueBinding::None,
+		ETextureCreateFlags::ShaderResource | ETextureCreateFlags::RenderTargetable);
+	FRDGTextureRef OutColorTexture = GraphBuilder.CreateTexture(OutColorDesc, TEXT("AlloSphere.OutColorTexture"));
 
-	// Interop copy pass: copy scene color to an intermediate texture that can be accessed externally by OpenGL
-	FRDGTextureRef InteropTexture;
-	{
-		FRDGTextureDesc InteropDesc = SceneColor.Texture->Desc;
-		InteropDesc.Flags |= ETextureCreateFlags::External;
-		InteropTexture = GraphBuilder.CreateTexture(InteropDesc, TEXT("AlloSphere.InteropTexture"));
-		AddCopyTexturePass(GraphBuilder, SceneColor.Texture, InteropTexture);
-	}
+	const auto Parameters = GraphBuilder.AllocParameters<FAlloWarpBlendShaderPS::FParameters>();
+	Parameters->InvTanHalfFov = 1.0 / FMath::Tan(AlloSubsystem->Info.FOV * PI / 180.0 / 2.0);
+	Parameters->ColorTexture = SceneColor.Texture;
+	Parameters->ColorSampler = TStaticSamplerState<>::GetRHI();
+	Parameters->RenderTargets.Output[0].SetTexture(OutColorTexture);
 
-	// Native dispatch pass: copy Vulkan texture to OpenGL AlloLib framebuffer
-	{
-		FNativeDispatchPassParameters* Parameters = GraphBuilder.AllocParameters<FNativeDispatchPassParameters>();
-		Parameters->InteropTexture = InteropTexture;
-		GraphBuilder.AddPass(
-			RDG_EVENT_NAME("AlloSphere.NativeDispatchPass"),
-			Parameters,
-			ERDGPassFlags::Raster | ERDGPassFlags::NeverCull,
-			[Parameters](FRHICommandListImmediate& RHICmdList)
-			{
-				// Todo: Native AlloLib stuff
-			}
-		);
-	}
+	AddDrawScreenPass<FAlloWarpBlendShaderPS>(
+		GraphBuilder,
+		RDG_EVENT_NAME("AlloSphere.WarpBlendPass"),
+		View,
+		FScreenPassTextureViewport(OutColorTexture),
+		FScreenPassTextureViewport(SceneColor),
+		GetGlobalShaderMap(ERHIFeatureLevel::SM5)->GetShader<FAlloWarpBlendShaderPS>(),
+		Parameters);
 
-	return SceneColor;
+	return FScreenPassTexture(OutColorTexture);
 }

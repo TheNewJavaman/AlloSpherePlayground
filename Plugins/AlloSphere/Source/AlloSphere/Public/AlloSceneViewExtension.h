@@ -21,13 +21,10 @@ public:
 		bool bIsPassEnabled) override;
 
 private:
-	BEGIN_SHADER_PARAMETER_STRUCT(FNativeDispatchPassParameters,)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InteropTexture)
-	END_SHADER_PARAMETER_STRUCT()
-
 	FScreenPassTexture PostProcessPassAfterFxaa_RenderThread(
 		FRDGBuilder& GraphBuilder,
-		const FSceneView& View, const FPostProcessMaterialInputs& Inputs);
+		const FSceneView& View,
+		const FPostProcessMaterialInputs& Inputs);
 
 	TWeakObjectPtr<UAlloSubsystem> AlloSubsystem;
 };

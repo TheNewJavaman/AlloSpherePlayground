@@ -1,0 +1,19 @@
+// Copyright Gabriel Pizarro. All Rights Reserved.
+
+#include "/Engine/Private/Common.ush"
+
+float InvTanHalfFov;
+
+Texture2D ColorTexture;
+SamplerState ColorSampler;
+
+void MainPS(
+	in noperspective float2 UV : TEXCOORD0,
+	out float4 OutColor : SV_Target0
+)
+{
+	UV *= InvTanHalfFov;
+	float3 Color = Texture2DSample(ColorTexture, ColorSampler, UV).rgb;
+	float Alpha = 0.5;
+	OutColor = float4(Color * Alpha, 1.0);
+}

@@ -13,11 +13,18 @@ public class AlloSphere : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(new[]
 		{
-			"AlloLib",
+			"AlloSphereShaders",
 			"CoreUObject",
 			"Engine",
-			"RenderCore",
-			"RHI"
+			"RHI",
+			"RHICore",
+			"Renderer",
+			"RenderCore"
+		});
+		
+		PublicIncludePaths.AddRange(new[]
+		{
+			"/usr/include"
 		});
 	}
 }
