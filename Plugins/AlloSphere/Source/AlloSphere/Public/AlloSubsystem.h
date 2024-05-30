@@ -8,16 +8,18 @@
 
 class FAlloSceneViewExtension;
 
-struct FProjectorView
+struct FAlloCalibration
 {
+	FString Id;
+	FString Filepath;
+	FIntPoint Resolution;
+	FVector2D WindowPosition;
+	FVector2D WindowExtent;
+	bool Active;
+	float FovInRad;
 	FRotator Rotation;
-};
-
-struct FProjectorViews
-{
-	FIntPoint Size;
-	double FOV;
-	FRotator Rotations[2];
+	UTexture2D* WarpAndBlendTexture;
+	FMatrix44f RotationMatrix;
 };
 
 UCLASS()
@@ -31,14 +33,9 @@ public:
 	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
 	virtual void Tick(float DeltaTime) override;
 
-	FProjectorViews Info{
-		.Size{640, 480},
-		.FOV = 90.0,
-		.Rotations{
-			FRotator{45, 0, 0},
-			FRotator{-45, 0, 0}
-		}
-	};
+	void LoadCalibrations();
+
+	TOptional<TArray<FAlloCalibration, TInlineAllocator<2>>> Calibrations;
 	
 private:
 	TSharedPtr<FAlloSceneViewExtension> SceneViewExtension;

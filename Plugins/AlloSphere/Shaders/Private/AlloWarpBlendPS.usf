@@ -3,17 +3,26 @@
 #include "/Engine/Private/Common.ush"
 
 float InvTanHalfFov;
+float4x4 RotationMatrix;
 
 Texture2D ColorTexture;
-SamplerState ColorSampler;
+Texture2D WarpBlendTexture;
+SamplerState CommonSampler;
 
+// Ported from perprojection_samplefrag
 void MainPS(
-	in noperspective float2 UV : TEXCOORD0,
+	in noperspective const float2 TexCoord : TEXCOORD0,
 	out float4 OutColor : SV_Target0
 )
 {
-	UV *= InvTanHalfFov;
-	float3 Color = Texture2DSample(ColorTexture, ColorSampler, UV).rgb;
-	float Alpha = 0.5;
+	float4 Sample = Texture2DSample(WarpBlendTexture, CommonSampler, TexCoord);
+	float3 Direction = Sample.rgb;
+	Direction = float3(-Direction.z, Direction.x, Direction.y);
+	float1 Alpha = Sample.a;
+	float3 UV = mul(RotationMatrix, float4(Direction, 0)).xyz;
+	UV.xy /= -UV.z;
+	UV.xy *= InvTanHalfFov;
+	UV.xy = UV.xy / 2.0 + 0.5;
+	float3 Color = Texture2DSample(ColorTexture, CommonSampler, UV).rgb;
 	OutColor = float4(Color * Alpha, 1.0);
 }

@@ -2,6 +2,7 @@
 
 #include "AlloSceneViewExtension.h"
 
+#include "AlloLog.h"
 #include "AlloShaders.h"
 #include "AlloSubsystem.h"
 #include "ScreenPass.h"
@@ -32,7 +33,7 @@ void FAlloSceneViewExtension::SubscribeToPostProcessingPass(
 	FAfterPassCallbackDelegateArray& InOutPassCallbacks,
 	bool bIsPassEnabled)
 {
-	if (Pass == EPostProcessingPass::FXAA)
+	if (Pass == EPostProcessingPass::FXAA && AlloSubsystem->Calibrations.IsSet())
 	{
 		InOutPassCallbacks.Add(
 			FAfterPassCallbackDelegate::CreateRaw(
@@ -46,20 +47,56 @@ FScreenPassTexture FAlloSceneViewExtension::PostProcessPassAfterFxaa_RenderThrea
 	const FSceneView& View,
 	const FPostProcessMaterialInputs& Inputs)
 {
-	const FScreenPassTexture& SceneColor = FScreenPassTexture::CopyFromSlice(
-		GraphBuilder, Inputs.GetInput(EPostProcessMaterialInput::SceneColor));
+	const FAlloCalibration& Calibration = (*AlloSubsystem->Calibrations)[0];
 
-	const FRDGTextureDesc OutColorDesc = FRDGTextureDesc::Create2D(
-		SceneColor.ViewRect.Size(),
-		PF_FloatRGBA,
-		FClearValueBinding::None,
-		ETextureCreateFlags::ShaderResource | ETextureCreateFlags::RenderTargetable);
-	FRDGTextureRef OutColorTexture = GraphBuilder.CreateTexture(OutColorDesc, TEXT("AlloSphere.OutColorTexture"));
+	const FScreenPassTexture& SceneColor = FScreenPassTexture::CopyFromSlice(
+		GraphBuilder,
+		Inputs.GetInput(EPostProcessMaterialInput::SceneColor));
+
+	FRDGTextureRef OutColorTexture;
+	{
+		const FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
+			SceneColor.ViewRect.Size(),
+			PF_FloatRGBA,
+			FClearValueBinding::None,
+			ETextureCreateFlags::ShaderResource | ETextureCreateFlags::RenderTargetable);
+		OutColorTexture = GraphBuilder.CreateTexture(Desc, TEXT("AlloSphere.OutColorTexture"));
+	}
+
+	FRDGTextureRef WarpBlendTexture;
+	{
+		if (!Calibration.WarpAndBlendTexture)
+		{
+			UE_LOG(LogAlloSphere, Warning, TEXT("WarpAndBlendTexture not set in PostProcessPass"));
+			return SceneColor;
+		}
+		
+		FTextureResource* TextureResource = Calibration.WarpAndBlendTexture->GetResource();
+		if (!TextureResource)
+		{
+			UE_LOG(LogAlloSphere, Warning, TEXT("TextureResource not set in PostProcessPass"));
+			return SceneColor;
+		}
+		
+		FRHITexture* RHITexture = TextureResource->GetTexture2DRHI();
+		if (!RHITexture)
+		{
+			UE_LOG(LogAlloSphere, Warning, TEXT("RHITexture not set in PostProcessPass"));
+			return SceneColor;
+		}
+		
+		WarpBlendTexture = RegisterExternalTexture(
+			GraphBuilder,
+			RHITexture,
+			TEXT("AlloSphere.WarpAndBlendTexture"));
+	}
 
 	const auto Parameters = GraphBuilder.AllocParameters<FAlloWarpBlendShaderPS::FParameters>();
-	Parameters->InvTanHalfFov = 1.0 / FMath::Tan(AlloSubsystem->Info.FOV * PI / 180.0 / 2.0);
+	Parameters->InvTanHalfFov = 1.0 / FMath::Tan(Calibration.FovInRad);
+	Parameters->RotationMatrix = Calibration.RotationMatrix;
 	Parameters->ColorTexture = SceneColor.Texture;
-	Parameters->ColorSampler = TStaticSamplerState<>::GetRHI();
+	Parameters->WarpBlendTexture = WarpBlendTexture;
+	Parameters->CommonSampler = TStaticSamplerState<>::GetRHI();
 	Parameters->RenderTargets.Output[0].SetTexture(OutColorTexture);
 
 	AddDrawScreenPass<FAlloWarpBlendShaderPS>(
