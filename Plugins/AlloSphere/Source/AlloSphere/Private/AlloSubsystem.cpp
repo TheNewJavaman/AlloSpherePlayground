@@ -7,6 +7,7 @@
 
 #include "AlloLog.h"
 #include "AlloSceneViewExtension.h"
+#include "GameFramework/PlayerState.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/DefaultValueHelper.h"
 
@@ -54,6 +55,7 @@ void UAlloSubsystem::Tick(float DeltaTime)
 		VP->SetDisplayConfiguration(&WindowResolution, EWindowMode::Windowed);
 		PC->FOV(FMath::RadiansToDegrees(Calibration.FovInRad));
 		PC->SetControlRotation(Calibration.Rotation);
+		Calibration.PlayerIndex = PC->PlayerState->GetPlayerId();
 
 		i++;
 	}
@@ -141,16 +143,6 @@ void UAlloSubsystem::LoadCalibrations()
 		File.read(reinterpret_cast<char*>(WarpAndBlendData.GetData()), sizeof(FVector4f) * WarpAndBlendData.Num());
 		File.close();
 
-		FVector3f Direction = FVector3f::ZeroVector;
-		for (const FVector4f& Entry : WarpAndBlendData)
-		{
-			Direction.X += Entry.X;
-			Direction.Y += Entry.Y;
-			Direction.Z += Entry.Z;
-		}
-		Direction.Normalize();
-		Calibration.Rotation = FVector(-Direction.Z, Direction.X, Direction.Y).ToOrientationRotator();
-
 		TArrayView64<uint8> WarpAndBlendCast(
 			reinterpret_cast<uint8*>(WarpAndBlendData.GetData()),
 			sizeof(FVector4f) * WarpAndBlendData.Num());
@@ -162,37 +154,42 @@ void UAlloSubsystem::LoadCalibrations()
 			WarpAndBlendCast);
 		Calibration.WarpAndBlendTexture->UpdateResource();
 
-		const float RotationAngle = FMath::Acos(FVector3f(0, 0, -1).Dot(Direction));
-		const FVector3f RotationAxis = FVector3f(0, 0, -1).Cross(Direction).GetUnsafeNormal();
-		float SinT, CosT;
-		FMath::SinCos(&SinT, &CosT, RotationAngle);
-		const float X = RotationAxis.X, Y = RotationAxis.Y, Z = RotationAxis.Z;
-		FMatrix44f ComponentSwapMatrix = {
-			{0, 1, 0, 0},
-			{0, 0, 1, 0},
-			{-1, 0, 0, 0},
-			{0, 0, 0, 1},
-		};
-		Calibration.RotationMatrix = FMatrix44f{
-			{
-				CosT + X * X * (1 - CosT),
-				X * Y * (1 - CosT) - Z * SinT,
-				X * Z * (1 - CosT) + Y * SinT,
-				0
-			},
-			{
-				Y * X * (1 - CosT) + Z * SinT,
-				CosT + Y * Y * (1 - CosT),
-				Y * Z * (1 - CosT) - X * SinT,
-				0
-			},
-			{
-				Z * X * (1 - CosT) - Y * SinT,
-				Z * Y * (1 - CosT) + X * SinT,
-				CosT + Z * Z * (1 - CosT),
-				0
-			},
-			{0, 0, 0, 1}
-		} * ComponentSwapMatrix;
+		FVector3f Direction(0, 0, 0);
+		for (const FVector4f& Entry : WarpAndBlendData)
+		{
+			Direction.X += Entry.X;
+			Direction.Y += Entry.Y;
+			Direction.Z += Entry.Z;
+		}
+		Direction.Normalize();
+		Direction = FVector3f(-Direction.Z, Direction.X, Direction.Y); // Convert AlloSphere/OpenGL -> Unreal
+		Calibration.Rotation = FVector(Direction).ToOrientationRotator();
+
+		const float Angle = FMath::Acos(FVector3f::ForwardVector.Dot(Direction));
+		const FVector3f Axis = FVector3f::ForwardVector.Cross(Direction).GetUnsafeNormal();
+		const FQuat4f Quat(Axis, -Angle);
+		Calibration.RotationMatrix = FQuatRotationMatrix44f(Quat);
+
+		// Calibration.RotationMatrix = FMatrix44f{
+		// 	{
+		// 		CosT + X * X * (1 - CosT),
+		// 		X * Y * (1 - CosT) - Z * SinT,
+		// 		X * Z * (1 - CosT) + Y * SinT,
+		// 		0
+		// 	},
+		// 	{
+		// 		Y * X * (1 - CosT) + Z * SinT,
+		// 		CosT + Y * Y * (1 - CosT),
+		// 		Y * Z * (1 - CosT) - X * SinT,
+		// 		0
+		// 	},
+		// 	{
+		// 		Z * X * (1 - CosT) - Y * SinT,
+		// 		Z * Y * (1 - CosT) + X * SinT,
+		// 		CosT + Z * Z * (1 - CosT),
+		// 		0
+		// 	},
+		// 	{0, 0, 0, 1}
+		// };
 	}
 }

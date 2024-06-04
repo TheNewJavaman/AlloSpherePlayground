@@ -2,7 +2,6 @@
 
 #include "AlloSceneViewExtension.h"
 
-#include "AlloLog.h"
 #include "AlloShaders.h"
 #include "AlloSubsystem.h"
 #include "ScreenPass.h"
@@ -47,7 +46,8 @@ FScreenPassTexture FAlloSceneViewExtension::PostProcessPassAfterFxaa_RenderThrea
 	const FSceneView& View,
 	const FPostProcessMaterialInputs& Inputs)
 {
-	const FAlloCalibration& Calibration = (*AlloSubsystem->Calibrations)[0];
+	const bool IsFirst = (*AlloSubsystem->Calibrations)[0].PlayerIndex == View.PlayerIndex;
+	const FAlloCalibration& Calibration = (*AlloSubsystem->Calibrations)[IsFirst ? 0 : 1];
 
 	const FScreenPassTexture& SceneColor = FScreenPassTexture::CopyFromSlice(
 		GraphBuilder,
@@ -65,25 +65,11 @@ FScreenPassTexture FAlloSceneViewExtension::PostProcessPassAfterFxaa_RenderThrea
 
 	FRDGTextureRef WarpBlendTexture;
 	{
-		if (!Calibration.WarpAndBlendTexture)
-		{
-			UE_LOG(LogAlloSphere, Warning, TEXT("WarpAndBlendTexture not set in PostProcessPass"));
-			return SceneColor;
-		}
-		
+		if (!Calibration.WarpAndBlendTexture) return SceneColor;
 		FTextureResource* TextureResource = Calibration.WarpAndBlendTexture->GetResource();
-		if (!TextureResource)
-		{
-			UE_LOG(LogAlloSphere, Warning, TEXT("TextureResource not set in PostProcessPass"));
-			return SceneColor;
-		}
-		
+		if (!TextureResource) return SceneColor;
 		FRHITexture* RHITexture = TextureResource->GetTexture2DRHI();
-		if (!RHITexture)
-		{
-			UE_LOG(LogAlloSphere, Warning, TEXT("RHITexture not set in PostProcessPass"));
-			return SceneColor;
-		}
+		if (!RHITexture) return SceneColor;
 		
 		WarpBlendTexture = RegisterExternalTexture(
 			GraphBuilder,

@@ -10,6 +10,7 @@ class FAlloSceneViewExtension;
 
 struct FAlloCalibration
 {
+	int32 PlayerIndex;
 	FString Id;
 	FString Filepath;
 	FIntPoint Resolution;

@@ -11,18 +11,18 @@ SamplerState CommonSampler;
 
 // Ported from perprojection_samplefrag
 void MainPS(
-	in noperspective const float2 TexCoord : TEXCOORD0,
+	in float2 TexCoord : TEXCOORD0,
 	out float4 OutColor : SV_Target0
 )
 {
-	float4 Sample = Texture2DSample(WarpBlendTexture, CommonSampler, TexCoord);
-	float3 Direction = Sample.rgb;
-	Direction = float3(-Direction.z, Direction.x, Direction.y);
-	float1 Alpha = Sample.a;
-	float3 UV = mul(RotationMatrix, float4(Direction, 0)).xyz;
-	UV.xy /= -UV.z;
-	UV.xy *= InvTanHalfFov;
-	UV.xy = UV.xy / 2.0 + 0.5;
-	float3 Color = Texture2DSample(ColorTexture, CommonSampler, UV).rgb;
-	OutColor = float4(Color * Alpha, 1.0);
+	TexCoord.x = frac(TexCoord.x * 2.0); // Splitscreen support
+	float4 WarpBlend = Texture2DSample(WarpBlendTexture, CommonSampler, TexCoord);
+	float3 Direction = WarpBlend.rgb;
+	Direction = float3(-Direction.z, Direction.x, Direction.y); // AlloSphere/OpenGL -> Unreal coordinate system
+	float3 WarpCoord = mul(RotationMatrix, float4(Direction, 0)).xyz;
+	WarpCoord.xy /= WarpCoord.z; // Also tested with -WarpCoord.z
+	WarpCoord.xy *= InvTanHalfFov;
+	WarpCoord.xy = WarpCoord.xy / 2.0 + 0.5;
+	float3 Color = Texture2DSample(ColorTexture, CommonSampler, WarpCoord.xy).rgb;
+	OutColor = float4(Color * WarpBlend.a, 1.0);
 }
